@@ -23,6 +23,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/axllent/mailpit/config"
+	"github.com/axllent/mailpit/internal/apirelay"
 	"github.com/axllent/mailpit/internal/smtpd/chaos"
 )
 
@@ -539,6 +541,13 @@ loop:
 			buffer.Write(s.makeHeaders(to))
 			buffer.Write(data)
 
+			// If API relay is enabled, forward the message
+			if config.APIRelayConfig.Enabled {
+				if err := apirelay.Relay(from, to, buffer.Bytes()); err != nil {
+					log.Printf("Error relaying message via API: %v", err)
+				}
+			}
+
 			// Pass mail on to handler.
 			if s.srv.Handler != nil {
 				err := s.srv.Handler(s.conn.RemoteAddr(), from, to, buffer.Bytes())
@@ -551,6 +560,7 @@ loop:
 					}
 					break
 				}
+
 				s.writef("250 2.0.0 Ok: queued")
 			} else if s.srv.MsgIDHandler != nil {
 				msgID, err := s.srv.MsgIDHandler(s.conn.RemoteAddr(), from, to, buffer.Bytes(), s.username)

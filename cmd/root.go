@@ -97,6 +97,18 @@ func init() {
 	rootCmd.Flags().BoolVarP(&logger.QuietLogging, "quiet", "q", logger.QuietLogging, "Quiet logging (errors only)")
 	rootCmd.Flags().BoolVarP(&logger.VerboseLogging, "verbose", "v", logger.VerboseLogging, "Verbose logging")
 
+	// API Relay
+	rootCmd.Flags().BoolVar(&config.APIRelayConfig.Enabled, "api-relay-enabled", config.APIRelayConfig.Enabled, "Enable API relaying of messages")
+	rootCmd.Flags().StringVar(&config.APIRelayConfigFile, "api-relay-config", config.APIRelayConfigFile, "Path to API relay configuration file")
+	rootCmd.Flags().StringVar(&config.APIRelayConfig.Endpoint, "api-relay-endpoint", config.APIRelayConfig.Endpoint, "API endpoint to relay messages to")
+	rootCmd.Flags().StringVar(&config.APIRelayConfig.AuthType, "api-relay-auth-type", config.APIRelayConfig.AuthType, "Authentication type (basic, bearer, api-key)")
+	rootCmd.Flags().StringVar(&config.APIRelayConfig.AuthToken, "api-relay-auth-token", config.APIRelayConfig.AuthToken, "Authentication token (for bearer or api-key auth)")
+	rootCmd.Flags().StringVar(&config.APIRelayConfig.AuthUsername, "api-relay-auth-username", config.APIRelayConfig.AuthUsername, "Username for basic auth")
+	rootCmd.Flags().StringVar(&config.APIRelayConfig.AuthPassword, "api-relay-auth-password", config.APIRelayConfig.AuthPassword, "Password for basic auth")
+	rootCmd.Flags().StringVar(&config.APIRelayConfig.APIKeyHeader, "api-relay-api-key-header", config.APIRelayConfig.APIKeyHeader, "Header name for API key authentication (default: X-API-Key)")
+	rootCmd.Flags().IntVar(&config.APIRelayConfig.Timeout, "api-relay-timeout", config.APIRelayConfig.Timeout, "Request timeout in seconds")
+	rootCmd.Flags().BoolVar(&config.APIRelayConfig.InsecureSkipVerify, "api-relay-insecure-skip-verify", config.APIRelayConfig.InsecureSkipVerify, "Skip TLS certificate verification")
+
 	// Web UI / API
 	rootCmd.Flags().StringVarP(&config.HTTPListen, "listen", "l", config.HTTPListen, "HTTP bind interface & port for UI")
 	rootCmd.Flags().StringVar(&config.Webroot, "webroot", config.Webroot, "Set the webroot for web UI & API")
@@ -268,6 +280,40 @@ func initConfigFromEnv() {
 	}
 	if getEnabledFromEnv("MP_SEND_API_AUTH_ACCEPT_ANY") {
 		config.SendAPIAuthAcceptAny = true
+	}
+
+	// API Relay
+	if getEnabledFromEnv("MP_API_RELAY_ENABLED") {
+		config.APIRelayConfig.Enabled = true
+	}
+	if len(os.Getenv("MP_API_RELAY_CONFIG")) > 0 {
+		config.APIRelayConfigFile = os.Getenv("MP_API_RELAY_CONFIG")
+	}
+	if len(os.Getenv("MP_API_RELAY_ENDPOINT")) > 0 {
+		config.APIRelayConfig.Endpoint = os.Getenv("MP_API_RELAY_ENDPOINT")
+	}
+	if len(os.Getenv("MP_API_RELAY_AUTH_TYPE")) > 0 {
+		config.APIRelayConfig.AuthType = os.Getenv("MP_API_RELAY_AUTH_TYPE")
+	}
+	if len(os.Getenv("MP_API_RELAY_AUTH_TOKEN")) > 0 {
+		config.APIRelayConfig.AuthToken = os.Getenv("MP_API_RELAY_AUTH_TOKEN")
+	}
+	if len(os.Getenv("MP_API_RELAY_AUTH_USERNAME")) > 0 {
+		config.APIRelayConfig.AuthUsername = os.Getenv("MP_API_RELAY_AUTH_USERNAME")
+	}
+	if len(os.Getenv("MP_API_RELAY_AUTH_PASSWORD")) > 0 {
+		config.APIRelayConfig.AuthPassword = os.Getenv("MP_API_RELAY_AUTH_PASSWORD")
+	}
+	if len(os.Getenv("MP_API_RELAY_API_KEY_HEADER")) > 0 {
+		config.APIRelayConfig.APIKeyHeader = os.Getenv("MP_API_RELAY_API_KEY_HEADER")
+	}
+	if len(os.Getenv("MP_API_RELAY_TIMEOUT")) > 0 {
+		if timeout, err := strconv.Atoi(os.Getenv("MP_API_RELAY_TIMEOUT")); err == nil {
+			config.APIRelayConfig.Timeout = timeout
+		}
+	}
+	if getEnabledFromEnv("MP_API_RELAY_INSECURE_SKIP_VERIFY") {
+		config.APIRelayConfig.InsecureSkipVerify = true
 	}
 
 	// SMTP server

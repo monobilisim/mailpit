@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"path"
@@ -17,6 +18,7 @@ import (
 	"github.com/axllent/mailpit/internal/smtpd/chaos"
 	"github.com/axllent/mailpit/internal/spamassassin"
 	"github.com/axllent/mailpit/internal/tools"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -151,6 +153,12 @@ var (
 	// SMTPRelayConfig to parse a yaml file and store config of the the relay SMTP server
 	SMTPRelayConfig SMTPRelayConfigStruct
 
+	// APIRelayConfigFile to parse a yaml file and store config of the API relay
+	APIRelayConfigFile string
+
+	// APIRelayConfig contains the configuration for API relaying
+	APIRelayConfig APIRelayConfigStruct
+
 	// ReleaseEnabled is whether message releases are enabled, requires a valid SMTPRelayConfigFile
 	ReleaseEnabled = false
 
@@ -253,6 +261,51 @@ type SMTPRelayConfigStruct struct {
 	RecipientAllowlist string `yaml:"recipient-allowlist"`
 }
 
+// APIRelayConfigStruct defines the configuration for API relaying
+// RequestTemplate defines a template for the API request body
+type RequestTemplate struct {
+	// Template is a Go template string for the request body
+	Template string `yaml:"template"`
+
+	// ContentType is the Content-Type header to use for the request
+	ContentType string `yaml:"content-type"`
+}
+
+type APIRelayConfigStruct struct {
+	// Enabled enables API relaying
+	Enabled bool `yaml:"enabled"`
+
+	// Endpoint is the HTTP/HTTPS endpoint to relay messages to
+	Endpoint string `yaml:"endpoint"`
+
+	// AuthType is the authentication type (none, basic, bearer, api-key)
+	AuthType string `yaml:"auth-type"`
+
+	// AuthToken is the authentication token (for bearer or api-key auth)
+	AuthToken string `yaml:"auth-token"`
+
+	// AuthUsername is the username for basic auth
+	AuthUsername string `yaml:"auth-username"`
+
+	// AuthPassword is the password for basic auth
+	AuthPassword string `yaml:"auth-password"`
+
+	// APIKeyHeader is the header name to use for API key authentication (default: X-API-Key)
+	APIKeyHeader string `yaml:"api-key-header"`
+
+	// Headers are additional headers to include in the request
+	Headers map[string]string `yaml:"headers"`
+
+	// Timeout is the request timeout in seconds
+	Timeout int `yaml:"timeout"`
+
+	// InsecureSkipVerify skips TLS certificate verification
+	InsecureSkipVerify bool `yaml:"insecure-skip-verify"`
+
+	// RequestTemplate defines a template for the request body
+	RequestTemplate *RequestTemplate `yaml:"request-template,omitempty"`
+}
+
 // SMTPForwardConfigStruct struct for parsing yaml & storing variables
 type SMTPForwardConfigStruct struct {
 	To            string `yaml:"to"`             // comma-separated list of email addresses
@@ -269,14 +322,90 @@ type SMTPForwardConfigStruct struct {
 	OverrideFrom  string `yaml:"override-from"`  // allow overriding of the from address
 }
 
-// VerifyConfig wil do some basic checking
+// parseAPIRelayConfig loads the API relay configuration from a YAML file
+func parseAPIRelayConfig(filename string) error {
+	if filename == "" {
+		return nil
+	}
+
+	logger.Log().Debugf("[apirelay] Loading configuration from %s", filename)
+
+	// Get absolute path
+	abspath, err := filepath.Abs(filename)
+	if err != nil {
+		return fmt.Errorf("error getting absolute path: %v", err)
+	}
+
+	logger.Log().Debugf("[apirelay] Absolute config path: %s", abspath)
+
+	// Check if file exists
+	if _, err := os.Stat(abspath); os.IsNotExist(err) {
+		return fmt.Errorf("config file does not exist: %s", abspath)
+	}
+
+	data, err := ioutil.ReadFile(abspath)
+	if err != nil {
+		return fmt.Errorf("error reading config file: %v", err)
+	}
+
+	logger.Log().Debugf("[apirelay] Read %d bytes from config file", len(data))
+
+	// Define a struct to match the YAML structure
+	type rawConfig struct {
+		Enabled            bool              `yaml:"enabled"`
+		Endpoint           string            `yaml:"endpoint"`
+		AuthType           string            `yaml:"auth-type"`
+		AuthToken          string            `yaml:"auth-token"`
+		AuthUsername       string            `yaml:"auth-username"`
+		AuthPassword       string            `yaml:"auth-password"`
+		APIKeyHeader       string            `yaml:"api-key-header"`
+		Headers            map[string]string `yaml:"headers"`
+		Timeout            int               `yaml:"timeout"`
+		InsecureSkipVerify bool              `yaml:"insecure-skip-verify"`
+		RequestTemplate    struct {
+			Template    string `yaml:"template"`
+			ContentType string `yaml:"content-type"`
+		} `yaml:"request-template"`
+	}
+
+	var raw rawConfig
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("error parsing YAML config: %v", err)
+	}
+
+	// Map the raw config to the APIRelayConfig
+	APIRelayConfig.Enabled = raw.Enabled
+	APIRelayConfig.Endpoint = raw.Endpoint
+	APIRelayConfig.AuthType = raw.AuthType
+	APIRelayConfig.AuthToken = raw.AuthToken
+	APIRelayConfig.AuthUsername = raw.AuthUsername
+	APIRelayConfig.AuthPassword = raw.AuthPassword
+	APIRelayConfig.APIKeyHeader = raw.APIKeyHeader
+	APIRelayConfig.Headers = raw.Headers
+	APIRelayConfig.Timeout = raw.Timeout
+	APIRelayConfig.InsecureSkipVerify = raw.InsecureSkipVerify
+
+	// Only set RequestTemplate if template is not empty
+	if raw.RequestTemplate.Template != "" {
+		APIRelayConfig.RequestTemplate = &RequestTemplate{
+			Template:    raw.RequestTemplate.Template,
+			ContentType: raw.RequestTemplate.ContentType,
+		}
+	}
+
+	logger.Log().Debugf("[apirelay] Loaded configuration: %+v", APIRelayConfig)
+
+	return nil
+}
+
+// VerifyConfig will do some basic configuration validation and setup
 func VerifyConfig() error {
 	cssFontRestriction := "*"
 	if BlockRemoteCSSAndFonts {
 		cssFontRestriction = "'self'"
 	}
 
-	// The default Content Security Policy is updates on every application page load to replace script-src 'self'
+	// The default Content Security Policy is updated on every application page load to replace script-src 'self'
 	// with a random nonce ID to prevent XSS. This applies to the Mailpit app & API.
 	// See server.middleWareFunc()
 	ContentSecurityPolicy = fmt.Sprintf("default-src 'self'; script-src 'self'; style-src %s 'unsafe-inline'; frame-src 'self'; img-src * data: blob:; font-src %s data:; media-src 'self'; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self';",
@@ -328,22 +457,19 @@ func VerifyConfig() error {
 		}
 	}
 
-	if UITLSCert != "" && UITLSKey == "" || UITLSCert == "" && UITLSKey != "" {
-		return errors.New("[ui] you must provide both a UI TLS certificate and a key")
-	}
-
-	if UITLSCert != "" {
-		UITLSCert = filepath.Clean(UITLSCert)
-		UITLSKey = filepath.Clean(UITLSKey)
-
-		if !isFile(UITLSCert) {
-			return fmt.Errorf("[ui] TLS certificate not found or readable: %s", UITLSCert)
-		}
-
-		if !isFile(UITLSKey) {
-			return fmt.Errorf("[ui] TLS key not found or readable: %s", UITLSKey)
+	// Load API relay configuration if specified
+	if APIRelayConfigFile != "" {
+		if err := parseAPIRelayConfig(APIRelayConfigFile); err != nil {
+			return fmt.Errorf("[apirelay] %v", err)
 		}
 	}
+
+	// If API relay is configured via environment variables, ensure it's enabled
+	if APIRelayConfig.Endpoint != "" {
+		APIRelayConfig.Enabled = true
+	}
+
+	return nil
 
 	// Send API
 	if SendAPIAuthFile != "" {
@@ -588,6 +714,30 @@ func VerifyConfig() error {
 	// separate forwarding config validation to account for environment variables
 	if err := validateForwardConfig(); err != nil {
 		return err
+	}
+
+	// Load API relay configuration if specified
+	if APIRelayConfigFile != "" {
+		if err := parseAPIRelayConfig(APIRelayConfigFile); err != nil {
+			return fmt.Errorf("[apirelay] %v", err)
+		}
+	}
+
+	// If API relay is configured via environment variables, ensure it's enabled
+	if APIRelayConfig.Endpoint != "" {
+		APIRelayConfig.Enabled = true
+	}
+
+	// Load API relay configuration if specified
+	if APIRelayConfigFile != "" {
+		if err := parseAPIRelayConfig(APIRelayConfigFile); err != nil {
+			return fmt.Errorf("[apirelay] %v", err)
+		}
+	}
+
+	// If API relay is configured via environment variables, ensure it's enabled
+	if APIRelayConfig.Endpoint != "" {
+		APIRelayConfig.Enabled = true
 	}
 
 	if DemoMode {

@@ -1,0 +1,31 @@
+# API Relay Configuration Example
+# Save this file and reference it with --api-relay-config or set MP_API_RELAY_CONFIG environment variable
+
+# Enable the API relay (default: false)
+enabled: true
+
+# The endpoint to send HTTP POST requests to
+endpoint: "https://api.example.com/email"
+
+# Authentication type: "basic", "bearer", "api-key", or "" for no auth
+auth-type: "bearer"
+
+# Authentication token (for bearer or api-key auth)
+auth-token: "your-bearer-token-here"
+
+# Username for basic auth
+auth-username: ""
+
+# Password for basic auth
+auth-password: ""
+
+# Custom headers to include in the request (optional)
+headers:
+  X-Custom-Header: "Mailpit"
+  X-Request-Source: "mailpit-relay"
+
+# Request timeout in seconds (default: 30)
+timeout: 30
+
+# Skip TLS certificate verification (default: false)
+insecure-skip-verify: false

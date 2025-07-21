@@ -28,6 +28,7 @@ require (
 	golang.org/x/net v0.41.0
 	golang.org/x/text v0.26.0
 	golang.org/x/time v0.12.0
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.38.0
 )
 
@@ -44,6 +45,7 @@ require (
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/inbucket/html2text v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect

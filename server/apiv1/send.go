@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/axllent/mailpit/config"
+	"github.com/axllent/mailpit/internal/apirelay"
 	"github.com/axllent/mailpit/internal/smtpd"
 	"github.com/axllent/mailpit/internal/tools"
 	"github.com/jhillyerd/enmime/v2"
@@ -183,5 +184,20 @@ func (d sendMessageParams) Send(remoteAddr string, httpAuthUser *string) (string
 		return "", fmt.Errorf("error building message: %s", err.Error())
 	}
 
-	return smtpd.SaveToDatabase(ipAddr, d.Body.From.Email, addresses, buff.Bytes(), httpAuthUser)
+	messageBytes := buff.Bytes()
+
+	// If API relay is enabled, relay the message
+	if config.APIRelayConfig.Enabled {
+		// Convert addresses to string slice
+		toAddresses := make([]string, len(addresses))
+		for i, addr := range addresses {
+			toAddresses[i] = addr
+		}
+
+		if err := apirelay.Relay(d.Body.From.Email, toAddresses, messageBytes); err != nil {
+			return "", fmt.Errorf("error relaying message via API: %v", err)
+		}
+	}
+
+	return smtpd.SaveToDatabase(ipAddr, d.Body.From.Email, addresses, messageBytes, httpAuthUser)
 }
