@@ -372,7 +372,7 @@ func Relay(from string, to []string, msg []byte) error {
 		statsMutex.Unlock()
 
 		logger.Log().Errorf("[apirelay] %s", errMsg)
-		return fmt.Errorf(errMsg)
+		return fmt.Errorf("%s", errMsg)
 	}
 
 	// Update success stats
