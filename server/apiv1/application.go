@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/axllent/mailpit/config"
+	"github.com/axllent/mailpit/internal/apirelay"
 	"github.com/axllent/mailpit/internal/smtpd/chaos"
 	"github.com/axllent/mailpit/internal/stats"
 )
@@ -71,6 +72,23 @@ func WebUIConfig(w http.ResponseWriter, _ *http.Request) {
 	conf.Body.ChaosEnabled = chaos.Enabled
 	conf.Body.DuplicatesIgnored = config.IgnoreDuplicateIDs
 	conf.Body.HideDeleteAllButton = config.HideDeleteAllButton
+
+	// Add API relay configuration
+	conf.Body.APIRelay.Enabled = config.APIRelayConfig.Enabled
+	if config.APIRelayConfig.Enabled {
+		conf.Body.APIRelay.Endpoint = config.APIRelayConfig.Endpoint
+		conf.Body.APIRelay.AuthType = config.APIRelayConfig.AuthType
+		conf.Body.APIRelay.Timeout = config.APIRelayConfig.Timeout
+		
+		// Add statistics
+		apiStats := apirelay.GetStats()
+		conf.Body.APIRelay.Stats.TotalMessages = apiStats.TotalMessages
+		conf.Body.APIRelay.Stats.SuccessCount = apiStats.SuccessCount
+		conf.Body.APIRelay.Stats.ErrorCount = apiStats.ErrorCount
+		conf.Body.APIRelay.Stats.LastSuccess = apiStats.LastSuccess
+		conf.Body.APIRelay.Stats.LastError = apiStats.LastError
+		conf.Body.APIRelay.Stats.LastErrorReason = apiStats.LastErrorReason
+	}
 
 	w.Header().Add("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(conf.Body); err != nil {

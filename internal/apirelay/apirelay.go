@@ -15,12 +15,36 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/axllent/mailpit/config"
 	"github.com/axllent/mailpit/internal/logger"
 	"gopkg.in/yaml.v3"
 )
+
+// Stats holds API relay statistics
+type Stats struct {
+	TotalMessages   int64     `json:"totalMessages"`
+	SuccessCount    int64     `json:"successCount"`
+	ErrorCount      int64     `json:"errorCount"`
+	LastSuccess     time.Time `json:"lastSuccess"`
+	LastError       time.Time `json:"lastError"`
+	LastErrorReason string    `json:"lastErrorReason"`
+}
+
+var (
+	// stats holds the current API relay statistics
+	stats     Stats
+	statsMutex sync.RWMutex
+)
+
+// GetStats returns the current API relay statistics
+func GetStats() Stats {
+	statsMutex.RLock()
+	defer statsMutex.RUnlock()
+	return stats
+}
 
 // LoadConfig loads the API relay configuration from a YAML file
 func LoadConfig(filename string) error {
@@ -217,6 +241,11 @@ func Relay(from string, to []string, msg []byte) error {
 		return nil
 	}
 
+	// Update total messages count
+	statsMutex.Lock()
+	stats.TotalMessages++
+	statsMutex.Unlock()
+
 	logger.Log().Debugf("[apirelay] Relay called - from: %s, to: %v, message size: %d bytes", from, to, len(msg))
 	logger.Log().Debugf("[apirelay] Configuration - endpoint: %s, auth-type: %s", config.APIRelayConfig.Endpoint, config.APIRelayConfig.AuthType)
 
@@ -227,6 +256,13 @@ func Relay(from string, to []string, msg []byte) error {
 	// Prepare request body
 	body, contentType, err := prepareRequestBody(from, to, msg)
 	if err != nil {
+		// Update error stats
+		statsMutex.Lock()
+		stats.ErrorCount++
+		stats.LastError = time.Now()
+		stats.LastErrorReason = fmt.Sprintf("Error preparing request body: %v", err)
+		statsMutex.Unlock()
+
 		logger.Log().Errorf("[apirelay] Error preparing request body: %v", err)
 		return fmt.Errorf("error preparing request body: %v", err)
 	}
@@ -308,6 +344,13 @@ func Relay(from string, to []string, msg []byte) error {
 	// Read response body
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		// Update error stats
+		statsMutex.Lock()
+		stats.ErrorCount++
+		stats.LastError = time.Now()
+		stats.LastErrorReason = fmt.Sprintf("Error reading response body: %v", err)
+		statsMutex.Unlock()
+
 		logger.Log().Errorf("[apirelay] Error reading response body: %v", err)
 		return fmt.Errorf("error reading response body: %v", err)
 	}
@@ -320,9 +363,23 @@ func Relay(from string, to []string, msg []byte) error {
 	// Check for non-2xx status codes
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errMsg := fmt.Sprintf("API request failed with status %d: %s", resp.StatusCode, string(respBody))
+		
+		// Update error stats
+		statsMutex.Lock()
+		stats.ErrorCount++
+		stats.LastError = time.Now()
+		stats.LastErrorReason = errMsg
+		statsMutex.Unlock()
+
 		logger.Log().Errorf("[apirelay] %s", errMsg)
 		return fmt.Errorf(errMsg)
 	}
+
+	// Update success stats
+	statsMutex.Lock()
+	stats.SuccessCount++
+	stats.LastSuccess = time.Now()
+	statsMutex.Unlock()
 
 	logger.Log().Infof(
 		"[apirelay] Successfully relayed message from %s to %v via %s",

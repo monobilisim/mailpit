@@ -78,6 +78,12 @@ export default {
 				});
 			});
 		},
+
+		formatDate(dateString) {
+			if (!dateString) return 'Never';
+			const date = new Date(dateString);
+			return date.toLocaleString();
+		},
 	},
 };
 </script>
@@ -98,7 +104,12 @@ export default {
 					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 				</div>
 				<div class="modal-body">
-					<ul v-if="mailbox.uiConfig.ChaosEnabled" id="myTab" class="nav nav-tabs" role="tablist">
+					<ul
+						v-if="mailbox.uiConfig.ChaosEnabled || (mailbox.uiConfig.APIRelay && mailbox.uiConfig.APIRelay.Enabled)"
+						id="myTab"
+						class="nav nav-tabs"
+						role="tablist"
+					>
 						<li class="nav-item" role="presentation">
 							<button
 								id="ui-tab"
@@ -113,7 +124,21 @@ export default {
 								Web UI
 							</button>
 						</li>
-						<li class="nav-item" role="presentation">
+						<li v-if="mailbox.uiConfig.APIRelay && mailbox.uiConfig.APIRelay.Enabled" class="nav-item" role="presentation">
+							<button
+								id="apirelay-tab"
+								class="nav-link"
+								data-bs-toggle="tab"
+								data-bs-target="#apirelay-tab-pane"
+								type="button"
+								role="tab"
+								aria-controls="apirelay-tab-pane"
+								aria-selected="false"
+							>
+								API Relay
+							</button>
+						</li>
+						<li v-if="mailbox.uiConfig.ChaosEnabled" class="nav-item" role="presentation">
 							<button
 								id="chaos-tab"
 								class="nav-link"
@@ -230,6 +255,114 @@ export default {
 										</template>
 										<code>Mark all read</code> confirmation dialogs
 									</label>
+								</div>
+							</div>
+						</div>
+
+						<div
+							v-if="mailbox.uiConfig.APIRelay && mailbox.uiConfig.APIRelay.Enabled"
+							id="apirelay-tab-pane"
+							class="tab-pane fade"
+							role="tabpanel"
+							aria-labelledby="apirelay-tab"
+							tabindex="0"
+						>
+							<div class="my-3">
+								<h6 class="mb-3">API Relay Configuration</h6>
+								<p class="text-muted">
+									API relay automatically forwards incoming messages to a configured HTTP/HTTPS endpoint.
+								</p>
+
+								<div class="row mb-3">
+									<div class="col-sm-3">
+										<strong>Status:</strong>
+									</div>
+									<div class="col-sm-9">
+										<span class="badge bg-success">Enabled</span>
+									</div>
+								</div>
+
+								<div class="row mb-3">
+									<div class="col-sm-3">
+										<strong>Endpoint:</strong>
+									</div>
+									<div class="col-sm-9">
+										<code>{{ mailbox.uiConfig.APIRelay.Endpoint }}</code>
+									</div>
+								</div>
+
+								<div v-if="mailbox.uiConfig.APIRelay.AuthType" class="row mb-3">
+									<div class="col-sm-3">
+										<strong>Authentication:</strong>
+									</div>
+									<div class="col-sm-9">
+										<span class="badge bg-info">{{ mailbox.uiConfig.APIRelay.AuthType }}</span>
+									</div>
+								</div>
+
+								<div v-if="mailbox.uiConfig.APIRelay.Timeout" class="row mb-3">
+									<div class="col-sm-3">
+										<strong>Timeout:</strong>
+									</div>
+									<div class="col-sm-9">
+										{{ mailbox.uiConfig.APIRelay.Timeout }} seconds
+									</div>
+								</div>
+
+								<h6 class="mb-3 mt-4">Statistics</h6>
+								
+								<div class="row mb-2">
+									<div class="col-sm-4">
+										<strong>Total Messages:</strong>
+									</div>
+									<div class="col-sm-8">
+										{{ mailbox.uiConfig.APIRelay.Stats?.TotalMessages || 0 }}
+									</div>
+								</div>
+
+								<div class="row mb-2">
+									<div class="col-sm-4">
+										<strong>Successful:</strong>
+									</div>
+									<div class="col-sm-8">
+										<span class="text-success">{{ mailbox.uiConfig.APIRelay.Stats?.SuccessCount || 0 }}</span>
+									</div>
+								</div>
+
+								<div class="row mb-2">
+									<div class="col-sm-4">
+										<strong>Failed:</strong>
+									</div>
+									<div class="col-sm-8">
+										<span class="text-danger">{{ mailbox.uiConfig.APIRelay.Stats?.ErrorCount || 0 }}</span>
+									</div>
+								</div>
+
+								<div v-if="mailbox.uiConfig.APIRelay.Stats?.LastSuccess" class="row mb-2">
+									<div class="col-sm-4">
+										<strong>Last Success:</strong>
+									</div>
+									<div class="col-sm-8">
+										<small class="text-muted">{{ formatDate(mailbox.uiConfig.APIRelay.Stats.LastSuccess) }}</small>
+									</div>
+								</div>
+
+								<div v-if="mailbox.uiConfig.APIRelay.Stats?.LastError" class="row mb-2">
+									<div class="col-sm-4">
+										<strong>Last Error:</strong>
+									</div>
+									<div class="col-sm-8">
+										<small class="text-muted">{{ formatDate(mailbox.uiConfig.APIRelay.Stats.LastError) }}</small>
+									</div>
+								</div>
+
+								<div v-if="mailbox.uiConfig.APIRelay.Stats?.LastErrorReason" class="row mb-3">
+									<div class="col-sm-4">
+										<strong>Last Error Reason:</strong>
+									</div>
+									<div class="col-sm-8">
+										<small class="text-danger">{{ mailbox.uiConfig.APIRelay.Stats.LastErrorReason }}</small>
+									</div>
 								</div>
 							</div>
 						</div>

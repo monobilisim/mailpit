@@ -9,6 +9,7 @@ package apiv1
 import (
 	"github.com/axllent/mailpit/internal/smtpd/chaos"
 	"github.com/axllent/mailpit/internal/stats"
+	"time"
 )
 
 // Binary data response which inherits the attachment's content type.
@@ -95,6 +96,33 @@ type webUIConfigurationResponse struct {
 
 		// Whether the delete button should be hidden
 		HideDeleteAllButton bool
+
+		// API Relay information
+		APIRelay struct {
+			// Whether API relaying is enabled
+			Enabled bool
+			// The configured API endpoint
+			Endpoint string
+			// Authentication type
+			AuthType string
+			// Request timeout in seconds
+			Timeout int
+			// Statistics
+			Stats struct {
+				// Total messages processed
+				TotalMessages int64
+				// Number of successful relays
+				SuccessCount int64
+				// Number of failed relays
+				ErrorCount int64
+				// Last successful relay time
+				LastSuccess time.Time
+				// Last error time
+				LastError time.Time
+				// Last error reason
+				LastErrorReason string
+			}
+		}
 	}
 }
 
